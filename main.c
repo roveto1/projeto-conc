@@ -1,15 +1,62 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include "gol.h"
+#include <pthread.h>
+
+typedef struct Parametros {
+    int steps;
+    int size;
+    stats_t stats_step;
+    stats_t stats_total;
+    cell_t **prev, **next, **tmp;
+} Parametros;
+
+void* Operacao(void* argumento) {
+    Parametros* arg = (Parametros*) argumento;
+
+    int steps = arg->steps;
+    int size = arg->size;
+    stats_t stats_step = arg->stats_step;
+    stats_t stats_total = arg->stats_total;
+    cell_t **prev = arg->prev;
+    cell_t **next = arg->next;
+    cell_t **tmp = arg->tmp;
+
+    for (int i = 0; i < steps; i++)
+        {
+            stats_step = play(prev, next, size);
+            
+            stats_total.borns += stats_step.borns;
+            stats_total.survivals += stats_step.survivals;
+            stats_total.loneliness += stats_step.loneliness;
+            stats_total.overcrowding += stats_step.overcrowding;
+   
+            #ifdef DEBUG
+                    printf("Step %d ----------\n", i + 1);
+                    print_board(next, size);
+                    print_stats(stats_step);
+            #endif
+
+            tmp = next;
+            next = prev;
+            prev = tmp;
+        }
+    arg->prev = **prev;
+    arg->stats_total = stats_total;
+    pthread_exit((void*)arg);
+}
 
 int main(int argc, char **argv)
-{
+{   
+
     int size, steps;
-    cell_t **prev, **next, **tmp;
+    cell_t **prev, **next, **tmp = malloc(sizeof(cell_t));
     FILE *f;
     stats_t stats_step = {0, 0, 0, 0};
     stats_t stats_total = {0, 0, 0, 0};
 
-    if (argc != 2)
+    if (argc != 3)
     {
         printf("ERRO! Você deve digitar %s <nome do arquivo do tabuleiro>!\n\n", argv[0]);
         return 0;
@@ -36,24 +83,30 @@ int main(int argc, char **argv)
     print_stats(stats_step);
 #endif
 
-    for (int i = 0; i < steps; i++)
-    {
-        stats_step = play(prev, next, size);
-        
-        stats_total.borns += stats_step.borns;
-        stats_total.survivals += stats_step.survivals;
-        stats_total.loneliness += stats_step.loneliness;
-        stats_total.overcrowding += stats_step.overcrowding;
+    int n_threads = atoi(argv[2]);
+    pthread_t threads[n_threads];
+    Parametros retorno[n_threads];
 
-#ifdef DEBUG
-        printf("Step %d ----------\n", i + 1);
-        print_board(next, size);
-        print_stats(stats_step);
-#endif
-        tmp = next;
-        next = prev;
-        prev = tmp;
+    Parametros arg;
+
+    arg.steps = steps;
+    arg.size = size;
+    arg.stats_step = stats_step;
+    arg.stats_total = stats_total;
+    arg.prev = prev;
+    arg.next = next;
+    arg.tmp = tmp;
+
+    for (int i = 0; i < n_threads; i++) {
+        pthread_create(&threads[i], NULL, Operacao, (void*) &arg);
     }
+
+    for (int i = 0; i < n_threads; i++) {
+        pthread_join(threads[i], NULL);
+        
+    }
+
+    free(tmp);
 
 #ifdef RESULT
     printf("Final:\n");
