@@ -6,49 +6,42 @@
 #include <math.h>
 
 typedef struct Parametros {
-    int final;
+    int id;
 
-    int steps;
+    int final;
+    int comeco;
     int size;
+    stats_t *stats_total;
     stats_t stats_step;
+    cell_t **prev, **next;
 
 } Parametros;
 
 pthread_mutex_t mutex;
-stats_t stats_total = {0, 0, 0, 0};
-cell_t **prev, **next, **tmp;
 
+#ifdef DEBUG
 int counter = 0;
+#endif
 
 void* Operacao(void* argumento) {
     Parametros* arg = (Parametros*) argumento;
-    int size = arg->size;
-    int final = arg->final;
-    stats_t stats_step = arg->stats_step;
-    // printf("\nFINAL: %d\n", final);
 
-    for (int i = 0; i < final; i++)
-        {   
-            stats_step = play(prev, next, size);
-            
-            pthread_mutex_lock(&mutex);
-            stats_total.borns += stats_step.borns;
-            stats_total.survivals += stats_step.survivals;
-            stats_total.loneliness += stats_step.loneliness;
-            stats_total.overcrowding += stats_step.overcrowding;
-            tmp = next;
-            next = prev;
-            prev = tmp;
-            counter += 1;
-            pthread_mutex_unlock(&mutex);
-   
-            #ifdef DEBUG
-                    printf("Step %d ----------\n", counter);
-                    print_board(next, size);
-                    print_stats(stats_total);
-            #endif
+    arg->stats_step = play(arg->prev, arg->next, arg->size, arg->comeco, arg->final);
+    
+    pthread_mutex_lock(&mutex);
+    arg->stats_total->borns += arg->stats_step.borns;
+    arg->stats_total->survivals += arg->stats_step.survivals;
+    arg->stats_total->loneliness += arg->stats_step.loneliness;
+    arg->stats_total->overcrowding += arg->stats_step.overcrowding;
+    pthread_mutex_unlock(&mutex);
 
-        }
+    #ifdef DEBUG
+        printf("Step %d [THREAD %d] ----------\n", counter, arg->id);
+        print_board(arg->next, arg->size);
+        print_stats(*arg->stats_total);
+    #endif
+
+        
     pthread_exit(NULL);
 }
 
@@ -57,11 +50,13 @@ int main(int argc, char **argv)
 
     int size, steps;
     FILE *f;
+    cell_t **prev, **next, **tmp;
+    stats_t stats_total = {0, 0, 0, 0};
     stats_t stats_step = {0, 0, 0, 0};
 
     if (argc != 3)
     {
-        printf("ERRO! Você deve digitar %s <nome do arquivo do tabuleiro>!\n\n", argv[0]);
+        printf("ERRO! Você deve digitar %s <nome do arquivo do tabuleiro> <numero de threads>!\n\n", argv[0]);
         return 0;
     }
 
@@ -89,33 +84,36 @@ int main(int argc, char **argv)
 #endif
     int n_threads = atoi(argv[2]);
 
-    if (n_threads > steps) {
-        n_threads = steps;
-    }
-
     pthread_t threads[n_threads];
     Parametros arg[n_threads];
-    int check = steps % n_threads;
 
-    for (int i = 0; i < n_threads; i++) {
-        arg[i].steps = steps;
-        arg[i].size = size;
-        arg[i].stats_step = stats_step;
-        if (check == 0) {
-            arg[i].final = (int) steps/n_threads;
-        } else {
-            arg[i].final = (int) floor(steps/n_threads);
-            if (check > 0) {
-                arg[i].final++;
-                check--;
-            }
+    for (int i = 0; i < steps; i++) {
+        for (int j = 0; j < n_threads; j++) {
+            arg[j].id = j;
+            arg[j].prev = prev;
+            arg[j].next = next;
+            arg[j].size = size;
+            arg[j].stats_step = stats_step;
+            arg[j].stats_total = &stats_total;
+
+            arg[j].comeco = (int) ceil((j*size)/n_threads);
+            arg[j].final = (int) ceil((((j+1)*size)/n_threads));
+
+            pthread_create(&threads[j], NULL, Operacao, (void*) &arg[j]);
         }
 
-        pthread_create(&threads[i], NULL, Operacao, (void*) &arg[i]);
-    }
+        for (int i = 0; i < n_threads; i++) {
+            pthread_join(threads[i], NULL);
+            
+        }
 
-    for (int i = 0; i < n_threads; i++) {
-        pthread_join(threads[i], NULL);
+        tmp = next;
+        next = prev;
+        prev = tmp;
+
+        #ifdef DEBUG
+        counter++;
+        #endif
     }
 
 #ifdef RESULT
