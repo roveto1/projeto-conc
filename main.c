@@ -30,7 +30,7 @@ void* Operacao(void* argumento) {
     #ifdef DEBUG
         printf("Step %d [THREAD %d] ----------\n", counter, arg->id);
         print_board(arg->next, arg->size);
-        print_stats(*arg->stats_total);
+        print_stats(arg->stats_step);
     #endif
 
     pthread_exit(NULL);
@@ -73,8 +73,13 @@ int main(int argc, char **argv)
 #endif
     int n_threads = atoi(argv[2]);
 
+    if (n_threads > size) {
+        n_threads = size;
+    }
+
     pthread_t threads[n_threads];
     Parametros arg[n_threads];
+
 
     for (int i = 0; i < steps; i++) {
         for (int j = 0; j < n_threads; j++) {
