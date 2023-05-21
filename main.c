@@ -4,20 +4,19 @@
 #include "gol.h"
 #include <pthread.h>
 #include <math.h>
+#include <sys/sysinfo.h>
 
 typedef struct Parametros {
     int id;
 
-    int final;
     int comeco;
+    int final;
     int size;
-    stats_t *stats_total;
+
     stats_t stats_step;
     cell_t **prev, **next;
 
 } Parametros;
-
-pthread_mutex_t mutex;
 
 #ifdef DEBUG
 int counter = 0;
@@ -27,13 +26,6 @@ void* Operacao(void* argumento) {
     Parametros* arg = (Parametros*) argumento;
 
     arg->stats_step = play(arg->prev, arg->next, arg->size, arg->comeco, arg->final);
-    
-    pthread_mutex_lock(&mutex);
-    arg->stats_total->borns += arg->stats_step.borns;
-    arg->stats_total->survivals += arg->stats_step.survivals;
-    arg->stats_total->loneliness += arg->stats_step.loneliness;
-    arg->stats_total->overcrowding += arg->stats_step.overcrowding;
-    pthread_mutex_unlock(&mutex);
 
     #ifdef DEBUG
         printf("Step %d [THREAD %d] ----------\n", counter, arg->id);
@@ -41,7 +33,6 @@ void* Operacao(void* argumento) {
         print_stats(*arg->stats_total);
     #endif
 
-        
     pthread_exit(NULL);
 }
 
@@ -65,8 +56,6 @@ int main(int argc, char **argv)
         printf("ERRO! O arquivo de tabuleiro '%s' não existe!\n\n", argv[1]);
         return 0;
     }
-
-    pthread_mutex_init(&mutex, NULL);
 
     fscanf(f, "%d %d", &size, &steps);
 
@@ -94,7 +83,6 @@ int main(int argc, char **argv)
             arg[j].next = next;
             arg[j].size = size;
             arg[j].stats_step = stats_step;
-            arg[j].stats_total = &stats_total;
 
             arg[j].comeco = (int) ceil((j*size)/n_threads);
             arg[j].final = (int) ceil((((j+1)*size)/n_threads));
@@ -102,9 +90,12 @@ int main(int argc, char **argv)
             pthread_create(&threads[j], NULL, Operacao, (void*) &arg[j]);
         }
 
-        for (int i = 0; i < n_threads; i++) {
-            pthread_join(threads[i], NULL);
-            
+        for (int j = 0; j < n_threads; j++) {
+            pthread_join(threads[j], NULL);
+            stats_total.borns += arg[j].stats_step.borns;
+            stats_total.survivals += arg[j].stats_step.survivals;
+            stats_total.loneliness += arg[j].stats_step.loneliness;
+            stats_total.overcrowding += arg[j].stats_step.overcrowding;
         }
 
         tmp = next;
@@ -121,8 +112,6 @@ int main(int argc, char **argv)
     print_board(prev, size);
     print_stats(stats_total);
 #endif
-
-    pthread_mutex_destroy(&mutex);
 
     free_board(prev, size);
     free_board(next, size);
