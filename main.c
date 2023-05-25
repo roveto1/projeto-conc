@@ -19,7 +19,7 @@ typedef struct Parametros {
 } Parametros;
 
 #ifdef DEBUG
-int counter = 0;
+// int counter = 0;
 #endif
 
 void* Operacao(void* argumento) {
@@ -28,9 +28,9 @@ void* Operacao(void* argumento) {
     arg->stats_step = play(arg->prev, arg->next, arg->size, arg->comeco, arg->final);
 
     #ifdef DEBUG
-        printf("Step %d [THREAD %d] ----------\n", counter, arg->id);
-        print_board(arg->next, arg->size);
-        print_stats(arg->stats_step);
+        // printf("Step %d [THREAD %d] ----------\n", counter, arg->id);
+        // print_board(arg->next, arg->size);
+        // print_stats(arg->stats_step);
     #endif
 
     pthread_exit(NULL);
@@ -67,9 +67,9 @@ int main(int argc, char **argv)
     fclose(f);
 
 #ifdef DEBUG
-    printf("Initial:\n");
-    print_board(prev, size);
-    print_stats(stats_step);
+    // printf("Initial:\n");
+    // print_board(prev, size);
+    // print_stats(stats_step);
 #endif
     int n_threads = atoi(argv[2]);
 
@@ -89,8 +89,9 @@ int main(int argc, char **argv)
             arg[j].size = size;
             arg[j].stats_step = stats_step;
 
-            arg[j].comeco = (int) ceil((j*size)/n_threads);
-            arg[j].final = (int) ceil((((j+1)*size)/n_threads));
+            arg[j].comeco = (j*size)/n_threads;
+            arg[j].final = ((j+1)*size)/n_threads;
+
 
             pthread_create(&threads[j], NULL, Operacao, (void*) &arg[j]);
         }
@@ -108,7 +109,7 @@ int main(int argc, char **argv)
         prev = tmp;
 
         #ifdef DEBUG
-        counter++;
+        // counter++;
         #endif
     }
 
